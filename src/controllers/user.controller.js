@@ -2,7 +2,7 @@ const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const secretKey = 'SecretKey';
-
+const tokenBlacklist = new Set();
 
 exports.registerUser = async (req, res) => {
 
@@ -41,10 +41,37 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ email: user.email }, secretKey);
+    const token = jwt.sign({ email: user.email }, secretKey, { expiresIn: '2m' });
     console.log(token);
     res.status(200).json({ token });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.logoutUser = (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (token) {
+    tokenBlacklist.add(token);
+    res.status(200).json({ message: "Logout successful" });
+  } else {
+    res.status(400).json({ message: "Invalid token" });
+  }
+};
+
+exports.verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (token && !tokenBlacklist.has(token)) {
+    jwt.verify(token, secretKey, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+      req.user = decoded;
+      next();
+    });
+  } else {
+    res.status(401).json({ message: "Invalid token" });
   }
 };
